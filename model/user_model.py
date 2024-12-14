@@ -16,10 +16,10 @@ class user_model:
         try:
             # Fetch database configuration from environment variables
             self.db_config = {
-                'host': os.getenv('DB_HOST', 'localhost'),
-                'user': os.getenv('DB_USER', 'root'),
+                'host': os.getenv('DB_HOST', ''),
+                'user': os.getenv('DB_USER', ''),
                 'password': os.getenv('DB_PASSWORD', ''),
-                'database': os.getenv('DB_NAME', 'test_db'),
+                'database': os.getenv('DB_NAME', ''),
                 'port': int(os.getenv('DB_PORT', 3306)),  # Default MySQL port
             }
 

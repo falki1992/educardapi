@@ -3,21 +3,33 @@ from mysql.connector import Error
 from datetime import date
 from config.config import dbconfig
 from datetime import datetime
+import os
 
 class notice_model:
     def __init__(self):
+        """Initialize the database connection."""
         try:
-            self.con = mysql.connector.connect(
-                host=dbconfig['host'],
-                user=dbconfig['username'],
-                password=dbconfig['password'],
-                database=dbconfig['database']
-            )
-            self.con.autocommit = True
-            self.cur = self.con.cursor(dictionary=True)
+            # Fetch database configuration from environment variables
+            self.db_config = {
+                'host': os.getenv('DB_HOST', ''),
+                'user': os.getenv('DB_USER', ''),
+                'password': os.getenv('DB_PASSWORD', ''),
+                'database': os.getenv('DB_NAME', ''),
+                'port': int(os.getenv('DB_PORT', 3306)),  # Default MySQL port
+            }
+
+            # Connect to the database
+            self.con = mysql.connector.connect(**self.db_config)
+            self.cur = self.con.cursor(dictionary=True)  # Enable dictionary cursor
+
+            if self.con.is_connected():
+                print("Secure database connection established.")
         except Error as e:
-            print(f"Database connection error: {e}")
+            print("Error connecting to the database. Check logs for details.")
+            with open('db_error.log', 'a') as log_file:
+                log_file.write(f"Database Error: {str(e)}\n")
             self.con = None
+            self.cur = None
 
     def create_notice(self, title, description, status, date, variable, added_by):
         """
