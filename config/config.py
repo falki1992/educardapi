@@ -1,7 +1,7 @@
 dbconfig = {
-    "host":"database-1.cj4emioqgi0d.eu-north-1.rds.amazonaws.com",
+    "host":"localhost",
     "port":"3306",
-    "username":"admin",
-    "password":"mypassword",
+    "username":"root",
+    "password":"",
     "database":"eacademy"
 }

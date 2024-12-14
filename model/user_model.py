@@ -2,24 +2,39 @@ from datetime import datetime, timedelta
 import mysql.connector
 from mysql.connector import Error
 from flask import jsonify
-from config.config import dbconfig
 from werkzeug.security import generate_password_hash
 import hashlib
+import os
+from dotenv import load_dotenv
+
+# Load environment variables from a `.env` file
+load_dotenv()
 
 class user_model:
     def __init__(self):
+        """Initialize the database connection."""
         try:
-            self.con = mysql.connector.connect(
-                host=dbconfig['host'],
-                user=dbconfig['username'],
-                password=dbconfig['password'],
-                database=dbconfig['database']
-            )
-            self.con.autocommit = True
-            self.cur = self.con.cursor(dictionary=True)
+            # Fetch database configuration from environment variables
+            self.db_config = {
+                'host': os.getenv('DB_HOST', 'localhost'),
+                'user': os.getenv('DB_USER', 'root'),
+                'password': os.getenv('DB_PASSWORD', ''),
+                'database': os.getenv('DB_NAME', 'test_db'),
+                'port': int(os.getenv('DB_PORT', 3306)),  # Default MySQL port
+            }
+
+            # Connect to the database
+            self.con = mysql.connector.connect(**self.db_config)
+            self.cur = self.con.cursor(dictionary=True)  # Enable dictionary cursor
+
+            if self.con.is_connected():
+                print("Secure database connection established.")
         except Error as e:
-            print(f"Database connection error: {e}")
+            print("Error connecting to the database. Check logs for details.")
+            with open('db_error.log', 'a') as log_file:
+                log_file.write(f"Database Error: {str(e)}\n")
             self.con = None
+            self.cur = None
 
     def all_user_model(self):
         """Fetch all users from the database."""
@@ -42,29 +57,32 @@ class user_model:
         except Error as e:
             return None
 
-    def insert_user(self, name, email, password,role):
+    def insert_user(self, name, email, password, role):
         """Insert a new user into the database."""
         try:
-            hashed_password = password
-            query = "INSERT INTO users (name, email, password,role) VALUES (%s, %s, %s,%s)"
-            self.cur.execute(query, (name, email, hashed_password,role))
+            hashed_password = self.hash_password(password)
+            query = "INSERT INTO users (name, email, password, role) VALUES (%s, %s, %s, %s)"
+            self.cur.execute(query, (name, email, hashed_password, role))
             self.con.commit()
             return self.cur.lastrowid
         except Error as e:
             return str(e)
 
-# Login Functions
+    # Login Functions
     def find_user_by_email(self, email):
-        """Fetch user by email if status=1 and admin_id=1."""
-        query = """
-        SELECT * FROM users
-        WHERE email = %s AND status = 1
-        """
-        self.cur.execute(query, (email,))
-        return self.cur.fetchone()
+        """Fetch user by email if status=1."""
+        try:
+            query = """
+            SELECT * FROM users
+            WHERE email = %s AND status = 1
+            """
+            self.cur.execute(query, (email,))
+            return self.cur.fetchone()
+        except Error as e:
+            return None
 
     def hash_password(self, password):
-        """Hashes the password using MD5."""
+        """Hash the password using MD5."""
         md5_hash = hashlib.md5()
         md5_hash.update(password.encode('utf-8'))
         return md5_hash.hexdigest()
@@ -78,15 +96,12 @@ class user_model:
         """Handle user login logic."""
         try:
             user = self.find_user_by_email(email)
-            role_id=user['role']
-            role=self.get_role_by_id(role_id)
-            user['user_role']=role
-
             if not user:
                 return {'status': 'FAILED', 'message': 'User not found or unauthorized'}
 
             if self.verify_password(password, user['password']):
-
+                role_id = user['role']
+                user['user_role'] = self.get_role_by_id(role_id)
                 return {'status': 'OK', 'message': 'Login successful', 'response': user}
             else:
                 return {'status': 'FAILED', 'message': 'Invalid credentials'}
@@ -100,36 +115,35 @@ class user_model:
             UPDATE users
             SET token = %s
             WHERE id = %s
-        """
+            """
             self.cur.execute(query, (token, user_id))
             self.con.commit()
             print(f"Token updated successfully for user_id: {user_id}")
-
         except Error as e:
             return str(e)
 
     def verify_token(self, token):
-        """Verify if the provided token is valid and not expired."""
+        """Verify if the provided token is valid."""
         try:
             query = """
-                SELECT id, email FROM users
-                WHERE token = %s
+            SELECT id, email FROM users
+            WHERE token = %s
             """
             self.cur.execute(query, (token,))
             return self.cur.fetchone()  # Return user details if token is valid
         except Error as e:
             print(f"Error verifying token: {e}")
             return None
-    def get_role_by_id(self, id):
-        try:
-            query = "SELECT id,name FROM roles WHERE id = %s"
-            self.cur.execute(query, (id,))
-            result = self.cur.fetchone()
 
+    def get_role_by_id(self, role_id):
+        """Fetch role name by role ID."""
+        try:
+            query = "SELECT id, name FROM roles WHERE id = %s"
+            self.cur.execute(query, (role_id,))
+            result = self.cur.fetchone()
             if result:
                 return result['name']
-            else:
-                return None  # No such role found
+            return None
         except Error as e:
             return str(e)
 
