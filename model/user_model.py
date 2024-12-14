@@ -147,6 +147,7 @@ class user_model:
         except Error as e:
             return str(e)
 
+
     def close_connection(self):
         """Close the database connection."""
         if self.cur:
